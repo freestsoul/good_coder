@@ -1,0 +1,227 @@
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <map>
+
+using std::string;
+
+class MyType {
+public:
+    virtual void GetValue() {
+    }
+
+    virtual void Init() {
+    }
+};
+
+class MyInt : public MyType {
+
+public:
+    MyInt(std::istream &is) {
+        is >> x;
+    }
+
+    MyInt(std::string &is) {
+        std::stringstream ss(is);
+        ss >> x;
+    }
+
+    void Init() {
+        std::cout << "MyInt:Init()" << std::endl;
+    }
+
+    void GetValue() {
+        std::cout << x << std::endl;
+    }
+
+private:
+    int x;
+};
+
+class MyFloat : public MyType {
+public:
+    MyFloat(std::istream &is) {
+        is >> x;
+    }
+
+    MyFloat(std::string &is) {
+        std::stringstream ss(is);
+        ss >> x;
+    }
+
+    void Init() {
+        std::cout << "MyFloat:Init()" << std::endl;
+    }
+
+    void GetValue() {
+        std::cout << x << std::endl;
+    }
+
+private:
+    float x;
+};
+
+class MyChStr : public MyType {
+public:
+    MyChStr(std::istream& is) {
+        is >> str;
+    }
+
+    MyChStr(std::string& is) : str(is) {
+
+    }
+
+    // void Init() {
+    //     x = new char[str.size()];
+    //     memcpy(x, str.c_str(), str.size());
+    // }
+
+    // ~MyChStr() {
+    //     if (x != nullptr) {
+    //         delete x;
+    //     }
+    // }
+
+    void GetValue() {
+        std::cout << str << std::endl;
+    }
+
+private:
+    std::string str;
+    //char *x;
+};
+
+template <typename T>
+class MyArray : public MyType {
+public:
+    MyArray(std::string& str) {
+        //is >> str;
+        std::cout << str << std::endl;
+        std::size_t found = str.find(":");
+        if (found == std::string::npos) {
+            //TODO error;
+        }
+
+        size_t num;
+        std::stringstream snum(str.substr(0, found));
+        snum >> num;
+        std::cout << num << std::endl;
+
+        std::stringstream sitems(str.substr(found+1));
+        std::cout << sitems.str() << std::endl;
+        char pattern = ',';
+        std::string stemp;
+        T ttemp;
+
+        while (std::getline(sitems, stemp, pattern)) {
+            std::stringstream oss(stemp);
+            oss >> ttemp;
+            tarray.push_back(ttemp);
+        }
+
+        // tarray = new T[svec.size()];
+        // for (auto iter = svec.begin(); iter != svec.end(); ++iter) {
+        //     std::ostringstream oss(*iter);
+        //     oss >> ttemp;
+        //     tarray ttemp;
+        // }
+    }
+
+    MyArray(std::vector<T> _vec) : tarray(_vec) {
+
+    }
+
+    static void myfunction(T x) {
+        std::cout << x << std::endl;
+    }
+
+    void GetValue() {
+        for_each(tarray.begin(), tarray.end(), myfunction);
+    }
+
+private:
+    //std::string str;
+    std::vector<T> tarray;
+};
+
+
+class CustomerType : public MyType {
+public:
+    CustomerType(std::istream& is) {
+        //is >> scheme;
+    }
+
+    /*
+    Parse(std::string str) {
+
+    }
+    */
+private:
+    std::string strIn;
+    std::vector<std::string> scheme;
+};
+
+class TypeFactory {
+public:
+    //typedef MyType* (*CreateFunction)(std::istream&);
+    typedef MyType* (*CreateFunction)(std::string&);
+
+    bool Register(const int ind, CreateFunction function) {
+        return factoryMap_.insert(FactoryMap::value_type(ind, function)).second;
+    }
+
+    // MyType* Create(const int ind, std::istream& is) const {
+    //     FactoryMap::const_iterator iter = factoryMap_.find(ind);
+    //     return iter != factoryMap_.end() ? iter->second(is) : 0;
+    // }
+
+    MyType* Create(const int ind, std::string& is) const {
+        FactoryMap::const_iterator iter = factoryMap_.find(ind);
+        return iter != factoryMap_.end() ? iter->second(is) : 0;
+    }
+
+    static TypeFactory& Instance() {
+        static TypeFactory singleton;
+        return singleton;
+    }
+
+    typedef std::map<int, CreateFunction> FactoryMap;
+    FactoryMap factoryMap_;
+};
+
+template <typename T>
+MyType* CreateMyType(std::string& is) {
+    return new T(is);
+}
+
+// MyType* Parse(int ind, std::istream& is) {
+//     return TypeFactory::Instance().Create(ind, is);
+// }
+
+MyType* Parse(int ind, std::string& is) {
+    return TypeFactory::Instance().Create(ind, is);
+}
+
+
+int main() {
+    TypeFactory::Instance().Register(0, CreateMyType<MyInt>);
+    TypeFactory::Instance().Register(1, CreateMyType<MyFloat>);
+    TypeFactory::Instance().Register(2, CreateMyType<MyChStr>);
+    TypeFactory::Instance().Register(3, CreateMyType<MyArray<int>>);
+    ///TypeFactory::Instance().Register(4, Create )
+
+    std::string sinput("22\t33.5\t8efefe8\t2:34,56");
+    std::stringstream ssinput(sinput);
+    std::string temp;
+
+    int i = 0;
+    while (std::getline(ssinput, temp, '\t')) {
+
+        MyType* myType = Parse(i++, temp);
+        std::cout << "Output:" << std::endl;
+        myType->GetValue();
+    }
+
+    return 0;
+}

@@ -1,0 +1,244 @@
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <map>
+
+#include <boost/version.hpp>
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string/classification.hpp>
+
+
+using std::string;
+
+class MyType {
+public:
+    virtual void GetValue() {
+    }
+
+    virtual void Init() {
+    }
+};
+
+class MyInt : public MyType {
+
+public:
+    MyInt(std::istream &is) {
+        is >> x;
+    }
+
+    MyInt(std::string &is) {
+        std::stringstream ss(is);
+        ss >> x;
+    }
+
+    void Init() {
+        std::cout << "MyInt:Init()" << std::endl;
+    }
+
+    void GetValue() {
+        std::cout << x << std::endl;
+    }
+
+private:
+    int x;
+};
+
+class MyFloat : public MyType {
+public:
+    MyFloat(std::istream &is) {
+        is >> x;
+    }
+
+    MyFloat(std::string &is) {
+        std::stringstream ss(is);
+        ss >> x;
+    }
+
+    void Init() {
+        std::cout << "MyFloat:Init()" << std::endl;
+    }
+
+    void GetValue() {
+        std::cout << x << std::endl;
+    }
+
+private:
+    float x;
+};
+
+class MyChStr : public MyType {
+public:
+    MyChStr(std::istream& is) {
+        is >> str;
+    }
+
+    MyChStr(std::string& is) : str(is) {
+
+    }
+
+    void GetValue() {
+        std::cout << str << std::endl;
+    }
+
+private:
+    std::string str;
+};
+
+template <typename T>
+class MyArray : public MyType {
+public:
+    MyArray(std::string& str) {
+        //is >> str;
+        std::cout << str << std::endl;
+        std::size_t found = str.find(":");
+        if (found == std::string::npos) {
+            //TODO error;
+        }
+
+        size_t num;
+        std::stringstream snum(str.substr(0, found));
+        snum >> num;
+        std::cout << num << std::endl;
+
+        std::stringstream sitems(str.substr(found+1));
+        std::cout << sitems.str() << std::endl;
+        char pattern = ',';
+        std::string stemp;
+        T ttemp;
+
+        while (std::getline(sitems, stemp, pattern)) {
+            std::stringstream oss(stemp);
+            oss >> ttemp;
+            tarray.push_back(ttemp);
+        }
+
+        // tarray = new T[svec.size()];
+        // for (auto iter = svec.begin(); iter != svec.end(); ++iter) {
+        //     std::ostringstream oss(*iter);
+        //     oss >> ttemp;
+        //     tarray ttemp;
+        // }
+    }
+
+    MyArray(std::vector<T> _vec) : tarray(_vec) {
+
+    }
+
+    static void myfunction(T x) {
+        std::cout << x << std::endl;
+    }
+
+    void GetValue() {
+        for_each(tarray.begin(), tarray.end(), myfunction);
+    }
+
+private:
+    //std::string str;
+    std::vector<T> tarray;
+};
+
+
+int StringSplit(std::vector<std::string>& splits, std::string& is, std::string& pattern) {
+    boost::split(splits, is, boost::is_any_of(pattern));
+    return 0;
+}
+
+class CustomerType : public MyType {
+public:
+    CustomerType(std::string& is) { //'|'分隔;
+        std::vector<std::string> svec;
+        std::string pattern("|");
+        StringSplit(svec, is, pattern);
+
+        std::stringstream ss;
+        ss << svec[0];
+        ss >> data.x;
+
+        ss.clear();
+        ss << svec[1];
+        ss >> data.y;
+
+        ss << svec[2];
+        ss >> data.z;
+    }
+
+    void GetValue() {
+        std::cout << "CustomerType:" << data.x << "\t" << data.y << "\t" << data.z << std::endl;
+    }
+
+private:
+    struct stData {
+        int x;
+        double y;
+        string z;
+    };
+
+    stData data;
+};
+
+class TypeFactory {
+public:
+    //typedef MyType* (*CreateFunction)(std::istream&);
+    typedef MyType* (*CreateFunction)(std::string&);
+
+    bool Register(const int ind, CreateFunction function) {
+        return factoryMap_.insert(FactoryMap::value_type(ind, function)).second;
+    }
+
+    // MyType* Create(const int ind, std::istream& is) const {
+    //     FactoryMap::const_iterator iter = factoryMap_.find(ind);
+    //     return iter != factoryMap_.end() ? iter->second(is) : 0;
+    // }
+
+    MyType* Create(const int ind, std::string& is) const {
+        FactoryMap::const_iterator iter = factoryMap_.find(ind);
+        return iter != factoryMap_.end() ? iter->second(is) : 0;
+    }
+
+    static TypeFactory& Instance() {
+        static TypeFactory singleton;
+        return singleton;
+    }
+
+    typedef std::map<int, CreateFunction> FactoryMap;
+    FactoryMap factoryMap_;
+};
+
+template <typename T>
+MyType* CreateMyType(std::string& is) {
+    return new T(is);
+}
+
+// MyType* Parse(int ind, std::istream& is) {
+//     return TypeFactory::Instance().Create(ind, is);
+// }
+
+MyType* Parse(int ind, std::string& is) {
+    return TypeFactory::Instance().Create(ind, is);
+}
+
+
+int main() {
+    std::cout << "Boost version: " << BOOST_VERSION << std::endl;
+    TypeFactory::Instance().Register(0, CreateMyType<MyInt>);
+    TypeFactory::Instance().Register(1, CreateMyType<MyFloat>);
+    TypeFactory::Instance().Register(2, CreateMyType<MyChStr>);
+    TypeFactory::Instance().Register(3, CreateMyType<MyArray<int>>);
+    TypeFactory::Instance().Register(4, CreateMyType<CustomerType>);
+
+    std::string sinput("22\t33.5\t8efefe8\t2:34,56\t33|44.56|fefei887");
+
+    std::vector<std::string> svec;
+    std::string pattern("\t");
+    StringSplit(svec, sinput, pattern);
+
+    int i = 0;
+    for (auto ele : svec) {
+        MyType* myType = Parse(i++, ele);
+        std::cout << "Type " << i << " Output:" << std::endl;
+        myType->GetValue();
+    }
+
+    return 0;
+}
